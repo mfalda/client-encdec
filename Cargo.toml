@@ -1,0 +1,46 @@
+[package]
+name = "client-encdec"
+version = "0.1.0"
+authors = ["M. Falda <marco.falda@gmail.com>"]
+edition = "2018"
+description = "A package for encrypting and decrypting texts in the browser."
+repository = "https://github.com/mfalda/client-encdec-priv"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+# This makes the compiled code faster and smaller, but it makes compiling slower,
+# so it's only enabled in release mode.
+lto = true
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+wasm-bindgen = "0.2.63"
+getrandom = { version = "0.2", features = ["js"] }
+format-bytes = "0.3.0"
+aes-gcm-siv = "0.11.1"
+hex = "0.4"
+utf8_slice = "1.0.0"
+rand = "0.8.5"
+lazy_static = "1.4.0"
+rust-argon2 = { version = "1.0.0", default-features = false } # to be able to compile in WASM
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.6", optional = true }
+
+# `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
+# compared to the default allocator's ~10K. It is slower than the default
+# allocator, however.
+wee_alloc = { version = "0.4.5", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"

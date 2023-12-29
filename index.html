@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Client EncDec example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.plot.ly/plotly-2.20.0.min.js" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <script src="statistics.min.js"></script>
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+</head>
+
+<body>
+  <div class="w3-container w3-purple">
+    <h2>Input Form</h2>
+  </div>
+
+  <form class="w3-container">
+    <p>
+      <label>First Name</label>
+      <input class="w3-input" id="firstname" value="John" type="text">
+    </p>
+    <p>
+      <label>Last Name</label>
+      <input class="w3-input" id="lastname" value="Smith" type="text">
+    </p>
+  </form>
+
+  <div class="w3-container w3-purple">
+    <h2>Benchmarks</h2>
+  </div>
+
+  <div id="barPlot"></div>
+  <div id="messages">Running benchmarks ...</div>
+
+  <script src="js/cryptojs-aes.min.js" charset="utf-8"></script>
+  <script src="js/cryptojs-mode-ctr.js" charset="utf-8"></script>
+  <script src="js/eax.min.js" charset="utf-8"></script>
+  <script src="js/siv.min.js" charset="utf-8"></script>
+  <script type="module">
+    import init, { greeting, generateSalt, hashPassword, encryptText, decryptText } from "./pkg/client_encdec.js";
+
+    init().then(() => {
+      greeting("Web Assembly works");
+
+      const PWD = 'O&3p5#2';
+
+      debugger;
+      var salt = generateSalt();
+      var key = hashPassword(PWD, salt);
+
+      document.getElementById('firstname').value = encryptText(key, salt, document.getElementById('firstname').value, 3);
+      document.getElementById('lastname').value = encryptText(key, salt, document.getElementById('lastname').value, 3);
+
+      document.getElementById('firstname').onblur = (event) => {
+        document.getElementById('firstname').value = encryptText(key, salt, event.target.value, 3);
+      };
+      document.getElementById('firstname').onfocus = (event) => {
+        document.getElementById('firstname').value = decryptText(key, event.target.value, 3);
+      };
+
+      document.getElementById('lastname').onblur = (event) => {
+        document.getElementById('lastname').value = encryptText(key, salt, event.target.value, 3);
+      };
+      document.getElementById('lastname').onfocus = (event) => {
+        document.getElementById('lastname').value = decryptText(key, event.target.value, 3);
+      };
+
+      let labels = [50, 100, 150, 200, 250];//, 5000, 10000];
+
+      const REPETITIONS = 10;
+
+      var msgDiv = document.getElementById("messages");
+ 
+      msgDiv.innerHTML = '<hr/><p>Benchmarking WASM';
+      let benchAvgTimesWASM = [];
+      let benchStdErrTimesWASM = [];
+
+      Promise.all(labels.map(k => {
+          document.body.style.cursor = 'progress';
+          benchmark(key, salt, REPETITIONS, k, true).then((resWASM) => {
+            //console.log(k, JSON.stringify(resWASM));
+            msgDiv.innerHTML += `- benchmarking WASM ${k} words: ${resWASM.avgTime} ± ${resWASM.stdErrTime}<br/>`; //+ JSON.stringify(resWASM);
+            benchAvgTimesWASM.push(resWASM.avgTime);
+            benchStdErrTimesWASM.push(resWASM.stdErrTime);
+            document.body.style.cursor = 'default';
+          })
+        })
+      ).then(results => {
+        msgDiv.innerHTML += '<hr/><p>Benchmarking JS';
+        let benchAvgTimesJS = [];
+        let benchStdErrTimesJS = [];
+        Promise.all(labels.map(k => {
+            document.body.style.cursor = 'progress';
+            benchmark(key, salt, REPETITIONS, k, false).then((resJS) => {
+              //console.log(k, JSON.stringify(resJS));
+              msgDiv.innerHTML += `- benchmarking JavaScript ${k} words: ${resJS.avgTime} ± ${resJS.stdErrTime}<br/>`; //+ JSON.stringify(resJS)};
+              benchAvgTimesJS.push(resJS.avgTime);
+              benchStdErrTimesJS.push(resJS.stdErrTime);
+              document.body.style.cursor = 'default';
+            });
+          })
+        ).then(results => {
+          plotBars(labels, 'WASM', 'JS',
+            benchAvgTimesWASM,
+            benchAvgTimesJS,
+            benchStdErrTimesWASM,
+            benchStdErrTimesJS
+          );
+        })
+      })
+    });
+
+    function plotBars(labels, name1, name2, data1, data2, se1, se2) {
+      var trace1 = {
+        x: data1,
+        y: labels,
+        name: name1,
+        orientation: 'h',
+        error_x: {
+          type: 'data',
+          array: se1,
+          visible: true
+        },
+        marker: {
+          color: 'rgba(55,128,191,0.6)',
+          width: 1
+        },
+        type: 'bar'
+      };
+
+      var trace2 = {
+        x: data2,
+        y: labels,
+        name: name2,
+        orientation: 'h',
+        type: 'bar',
+        error_x: {
+          type: 'data',
+          array: se2,
+          visible: true
+        },
+        marker: {
+          color: 'rgba(255,153,51,0.6)',
+          width: 1
+        }
+      };
+
+      var layout = {
+        title: 'Encoding / decoding benchmark',
+        xaxis: {
+          type: 'log',
+          autorange: true,
+          title: {
+            text: 'milliseconds (log)'
+          }
+        },
+        yaxis: {
+          autorange: true,
+          title: {
+            text: '# words'
+          }
+        }
+        //barmode: 'stack'
+      };
+
+      Plotly.newPlot('barPlot', [trace1, trace2], layout);
+    }
+
+    function encryptTextJS(key, salt, text, pref_len) {
+      var sivKey = '';
+      var suffix = 'PAtIENT ' + '0'.padStart(5, 0);
+      sivKey = CryptoJS.enc.Hex.parse(key + '|' + suffix);
+
+      var siv = CryptoJS.SIV.create(sivKey);
+
+      var prefix = '';
+
+      var text1 = text.substring(0, pref_len);
+      var text2 = '';
+
+      if (text.length === 3)
+        text1 = text;
+      else if (text.length > 3) {
+        text1 += text.substring(text.length - pref_len);
+        text2 = text.substring(pref_len, text.length - pref_len);
+      }
+
+      var res = siv.encrypt(CryptoJS.enc.Utf8.parse(text1)).toString();
+      var suffix1 = name + '|' + salt;
+      var eax1 = CryptoJS.EAX.create(CryptoJS.enc.Hex.parse(key + '|' + suffix1));
+      var variablePart = eax1.encrypt(CryptoJS.enc.Utf8.parse(text2), salt).toString();
+
+      return res + "g0" + salt + "g0" + variablePart;
+    }
+
+    function decryptTextJS(key, text, pref_len) {
+      if (!text)
+        return '*****';
+
+      var pos = text.indexOf('g', 3);
+      var suffix = '';
+      var suffix1 = '';
+      var text1 = '';
+      var text2 = '';
+      var salt = '';
+
+      if (pos >= 0) {
+        var pos1 = text.indexOf('g', pos + 1);
+        suffix = 'PAtIENT ' + '0'.padStart(5, '0');
+        if (pos1 >= 0)
+          text2 = text.substring(pos1 + 2);
+      }
+
+      var keyBytes = CryptoJS.enc.Hex.parse(key + '|' + suffix);
+      var siv = CryptoJS.SIV.create(keyBytes);
+      var plain = text;
+      try {
+        var text1 = text.substring(prefix, pos);
+        var salt = text.substring(pos + 2, pos1);
+        suffix1 = name + '|' + nonce;
+        var keyBytes1 = CryptoJS.enc.Hex.parse(key + '|' + suffix1);
+        var eax1 = CryptoJS.EAX.create(keyBytes1);
+        plain1 = siv.decrypt(CryptoJS.enc.Hex.parse(text1));
+        plain2 = eax1.decrypt(CryptoJS.enc.Hex.parse(text2), CryptoJS.enc.Hex.parse(salt));
+        if (!plain1 || !plain2)
+          plain = '*****';
+        else
+          plain = plain1.toString(CryptoJS.enc.Utf8).substring(0, pref_len)
+            + plain2.toString(CryptoJS.enc.Utf8)
+            + plain1.toString(CryptoJS.enc.Utf8).substring(pref_len);
+      } catch (e) {
+        plain = '*****';
+      }
+
+      return plain;
+    }
+
+    function generateNameList(N) {
+      let firstNames = ['James', 'Robert', 'John', 'Michael', 'David', 'William', 'Richard', 'Joseph', 'Thomas', 'Christopher', 'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen'];
+      let lastNames = ['Smith', 'Johnson', 'Williams', 'Jones', 'Brown', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+
+      let result = [];
+      for (let i = 0; i < N; i++) {
+        let indxF = Math.floor((Math.random() * firstNames.length));
+        let indxL = Math.floor((Math.random() * lastNames.length));
+        let firstName = firstNames[indxF];
+        let lastName = lastNames[indxL];
+        result.push(`${firstName} ${lastName}`);
+      }
+      return result;
+    }
+
+    function benchmark(key, salt, repetitions, totTexts, inWASM) {
+      return new Promise((resolve, reject) => {
+        //let encodeTimes = [];
+        let times = [];
+        //let encodeMemory = [];
+        let memory = [];
+        let data = [];
+        let enc = '', dec = '';
+
+        let str = generateNameList(totTexts);
+        for (let i = 0; i < repetitions; i++) {
+          let t0 = 0, m0 = 0;
+          if (window.navigator.userAgent.indexOf("Chrome") != -1 && window.performance && performance.memory) {
+            t0 = performance.now();
+            m0 = performance.memory.usedJSHeapSize;
+          }
+          for (let j = 0; j < totTexts; j++) {
+            if (inWASM)
+              enc = encryptText(key, salt, str[j], 3);
+            else
+              enc = encryptTextJS(key, salt, str[j], 3);
+
+            if (inWASM)
+              dec = decryptText(key, enc, 3);              
+            else
+              dec = decryptTextJS(key, enc, 3);
+              
+            if (str[j] !== dec)
+              console.log(`${str[j]} != ${dec}`);
+          }
+          if (window.navigator.userAgent.indexOf("Chrome") != -1 && window.performance && performance.memory) {
+            let t1 = performance.now();
+            let m1 = performance.memory.usedJSHeapSize;
+            times.push(t1 - t0);
+            memory.push(m1 - m0);
+            data.push({ ID: i + 1, time: t1 - t0, memory: m1 - m0 });          
+          }
+        }
+
+        var columns = {
+          ID: 'ordinal',
+          time: 'interval',
+          memory: 'interval',
+        };
+
+        let stats = new Statistics(data, columns);
+
+        //let avgEncodeTime = encodeTimes.reduce((a, b) => a + b) / N;
+        let avgTime = stats.arithmeticMean("time");
+        //let avgEncodeMemory = encodeMemory.reduce((a, b) => a + b) / N;
+        let avgMemory = stats.arithmeticMean("memory");
+
+        /*let stdErrEncodeTime =
+          Math.sqrt(
+            encodeTimes.map(x => Math.pow(x - avgEncodeTime, 2)).reduce((a, b) => a + b)
+          ) / Math.sqrt(N);*/
+        let stdErrTime = stats.standardDeviation("time") / Math.sqrt(repetitions * totTexts);
+        /*let stdErrEncodeMemory =
+          Math.sqrt(
+            encodeMemory.map(x => Math.pow(x - avgEncodeMemory, 2)).reduce((a, b) => a + b)
+          ) / Math.sqrt(N);*/
+        let stdErrMemory = stats.standardDeviation("memory") / Math.sqrt(repetitions * totTexts);
+
+        resolve({
+          //avgEncodeTime: avgEncodeTime,
+          avgTime: avgTime,
+          //avgEncodeMemory: avgEncodeMemory,
+          avgMemory: avgMemory,
+          //stdErrEncodeTime: stdErrEncodeTime,
+          stdErrTime: stdErrTime,
+          //stdErrEncodeMemory: stdErrEncodeMemory,
+          stdErrMemory: stdErrMemory
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

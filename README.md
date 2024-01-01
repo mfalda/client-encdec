@@ -1,3 +1,13 @@
+## Description
+
+The HTTPS protocol has enforced a higher level of robustness to several attacks; however, it is not easy to set up the required certificates on intranets, nor is it effective in the case the server confidentiality is not reliable, as in the case of cloud services, or it could be compromised. A simple method is proposed to encrypt the data on the client side, using Web Assembly. It never transfers data to the server as clear text. Searching fields in the server is made possible by an encoding scheme that ensures a stable prefix correspondence between ciphertext and plaintext. The method has been developed for a semantic medical database, and allows accessing personal data using an additional password while maintaining non-sensitive information in clear form. Web Assembly has been chosen to guarantee the fast and efficient execution of encrypting/decrypting operations and because of its characteristic of producing modules that are very robust against reverse engineering. 
+
+If you use this library please cite:
+
+Marco Falda and Angela Grassi: "Simple client-side encryption of personal information with Web Assembly", arXiv preprint arXiv:2312.17689, DOI: 
+https://doi.org/10.48550/arXiv.2312.17689, 2023.
+
+
 ## Available functions
 
 There are two main functions:

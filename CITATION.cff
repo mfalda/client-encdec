@@ -1,0 +1,28 @@
+
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Marco"
+  given-names: "Falda"
+  orcid: "https://orcid.org/0000-0003-2642-519X"
+- family-names: "Angela"
+  given-names: "Grassi"
+  orcid: "https://orcid.org/0000-0002-8313-8384"
+title: "Simple client-side encryption of personal information with Web Assembly"
+version: 1.0.0
+doi: 10.48550/arXiv.2312.17689
+date-released: 2023-12-28
+url: "https://github.com/mfalda/client-encdec"
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Marco"
+    given-names: "Falda"
+    orcid: "https://orcid.org/0000-0003-2642-519X"
+  - family-names: "Angela"
+    given-names: "Grassi"
+    orcid: "https://orcid.org/0000-0002-8313-8384"
+  doi: "10.48550/arXiv.2312.17689"
+  journal: "arXiv preprint"
+  title: "Simple client-side encryption of personal information with Web Assembly"
+  year: 2023
